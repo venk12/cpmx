@@ -5,9 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = fastapi.FastAPI()
 
+_origins = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allow_origins = [o.strip() for o in _origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
