@@ -22,10 +22,6 @@ const nextConfig = {
     APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
   },
   
-  // Experimental features (optional)
-  experimental: {
-    optimizeCss: true,
-  },
 };
 
 export default nextConfig;
