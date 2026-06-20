@@ -248,3 +248,6 @@ tmp/
 .obsidian/plugins/
 .obsidian/daily-notes/
 .obsidian/starred.md
+
+.vercel
+.env*
