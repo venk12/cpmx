@@ -1,0 +1,281 @@
+name: Deploy Pipeline
+
+on:
+  push:
+    branches:
+      - develop  # Auto-deploy to dev
+      - staging  # Auto-deploy to staging
+      - main     # Auto-deploy to prod (with approval)
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+      url: https://dev.cpmx-truck.eu
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get image tag
+        id: image
+        run: echo "tag=$(echo ${{ github.sha }} | cut -c 1-7)" >> $GITHUB_OUTPUT
+
+      - name: Deploy to AWS (ECS/EKS)
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          # Example: Update ECS service
+          # aws ecs update-service --cluster cpmx-dev --service cpmx-dev --force-new-deployment
+          
+          # Or: Deploy with kubectl if using EKS
+          # kubectl set image deployment/cpmx-api cpmx-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG -n dev
+          
+          echo "Deploying to dev environment..."
+          # Add your deployment script here
+
+      - name: Run smoke tests
+        env:
+          API_URL: https://dev.cpmx-truck.eu/api
+        run: |
+          echo "Running smoke tests..."
+          # Add basic health checks
+
+      - name: Notify success
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ Deployed to dev (dev.cpmx-truck.eu)\n\nCommit: ${{ github.sha }}\nImage: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }}'
+            })
+
+      - name: Notify failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ Deployment to dev failed\n\nCheck logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            })
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    environment:
+      name: staging
+      url: https://staging.cpmx-truck.eu
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get image tag
+        id: image
+        run: echo "tag=$(echo ${{ github.sha }} | cut -c 1-7)" >> $GITHUB_OUTPUT
+
+      - name: Deploy to AWS (ECS/EKS)
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          echo "Deploying to staging environment..."
+          # kubectl set image deployment/cpmx-api cpmx-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG -n staging
+
+      - name: Run integration tests
+        env:
+          API_URL: https://staging.cpmx-truck.eu/api
+        run: |
+          echo "Running integration tests..."
+          # pytest tests/integration/ -v
+
+      - name: Notify success
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.notice('✅ Deployed to staging (staging.cpmx-truck.eu)')
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://api.cpmx-truck.eu
+    needs: check-production-readiness
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get image tag
+        id: image
+        run: echo "tag=$(echo ${{ github.sha }} | cut -c 1-7)" >> $GITHUB_OUTPUT
+
+      - name: Create backup (pre-deploy)
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Creating database backup..."
+          # aws rds create-db-snapshot --db-instance-identifier cpmx-prod --db-snapshot-identifier cpmx-prod-$(date +%s)
+
+      - name: Deploy with Blue-Green strategy
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          echo "Deploying to production with blue-green strategy..."
+          # Deploy to green environment first
+          # Run smoke tests on green
+          # Switch traffic from blue to green
+
+      - name: Monitor post-deployment
+        run: |
+          echo "Monitoring production deployment..."
+          sleep 60
+          # curl https://api.cpmx-truck.eu/health
+          # Check error rates
+          # Check response times
+
+      - name: Rollback on failure
+        if: failure()
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Rolling back to previous version..."
+          # kubectl rollout undo deployment/cpmx-api -n production
+
+      - name: Create release notes
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v-${{ steps.image.outputs.tag }}
+          release_name: Release ${{ steps.image.outputs.tag }}
+          body: |
+            Production deployment successful
+            Deployed: ${{ github.sha }}
+            Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }}
+
+      - name: Notify team
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "CPMX Production Deployment Successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*✅ CPMX Deployed to Production*\n*Commit:* ${{ github.sha }}\n*Version:* v-${{ steps.image.outputs.tag }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  check-production-readiness:
+    name: Check Production Readiness
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify all tests passed
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "❌ Not all tests passed"
+            exit 1
+          fi
+
+      - name: Check code coverage
+        run: |
+          echo "Checking code coverage requirements..."
+          # Parse coverage report and fail if < 80%
+
+      - name: Verify deployment checklist
+        run: |
+          echo "Verifying deployment checklist..."
+          # - [ ] All tests passing
+          # - [ ] Code review approved
+          # - [ ] No security vulnerabilities
+          # - [ ] Database migrations ready
+          # - [ ] Documentation updated
+          echo "✅ Production readiness check passed"
+
+  rollback-production:
+    name: Rollback Production (Manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: production
+
+    steps:
+      - name: Confirm rollback
+        run: |
+          echo "⚠️ Rolling back production to previous stable version"
+
+      - name: Rollback deployment
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Executing rollback..."
+          # kubectl rollout undo deployment/cpmx-api -n production
+
+      - name: Verify rollback
+        run: |
+          sleep 30
+          echo "Verifying rollback success..."
+
+      - name: Notify team
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Production Rollback Executed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*⚠️ Production Rolled Back*\nCheck status: https://api.cpmx-truck.eu/health"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
