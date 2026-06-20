@@ -20,13 +20,13 @@ export default function Maintenance() {
         
         {/* Title */}
         <h1 className="mb-4 text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          We'll be back soon!
+          We&apos;ll be back soon!
         </h1>
-        
+
         {/* Description */}
         <p className="mb-8 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-          We're performing scheduled maintenance to improve your experience. 
-          This shouldn't take long.
+          We&apos;re performing scheduled maintenance to improve your experience.
+          This shouldn&apos;t take long.
         </p>
         
         {/* Progress indicator */}
