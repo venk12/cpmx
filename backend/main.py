@@ -25,7 +25,16 @@ async def read_root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "available"}
+
+@app.get("/info")
+async def info():
+    return {
+        "name": "CPMX",
+        "version": "0.1.0",
+        "status": "available",
+        "environment": os.getenv("ENVIRONMENT", "development"),
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
