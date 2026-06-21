@@ -1,9 +1,17 @@
 import { apiFetch } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
-  const health = await apiFetch<{ status: string }>("/health", {
-    next: { revalidate: 30 },
-  });
+  let status = "unavailable";
+  try {
+    const health = await apiFetch<{ status: string }>("/health", {
+      cache: "no-store",
+    });
+    status = health.status;
+  } catch {
+    // backend unreachable — show fallback
+  }
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
@@ -12,7 +20,7 @@ export default async function Home() {
           Hello this is my simple app
         </div>
         <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          Backend status: {health.status}
+          Backend status: {status}
         </div>
       </main>
     </div>
