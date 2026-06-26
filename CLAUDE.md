@@ -33,10 +33,20 @@ source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env            # creates your local env file
 
-# Every time
+# Activate venv (every terminal session)
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
+
+# Run with auto-reload on file changes (recommended for dev)
 uvicorn main:app --reload
+
+# OR run directly
+python main.py
 ```
+
+Once running:
+- API base: http://localhost:8000
+- Interactive docs (Swagger UI): http://localhost:8000/docs
+- Raw JSON schema: http://localhost:8000/openapi.json
 
 ### 2. Frontend (runs on http://localhost:3000)
 
