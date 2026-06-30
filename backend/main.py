@@ -30,8 +30,8 @@ async def health():
 @app.get("/info")
 async def info():
     return {
-        "name": "CPMX",
-        "version": "0.1.0",
+        "name": "GreenFlux Partnership Ecosystem",
+        "version": "1.0.0",
         "status": "available",
         "environment": os.getenv("ENVIRONMENT", "development"),
     }
