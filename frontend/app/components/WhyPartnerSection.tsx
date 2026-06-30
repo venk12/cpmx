@@ -49,7 +49,7 @@ export default function WhyPartnerSection() {
             Six Reasons to Partner
           </h2>
           <p className="text-zinc-500 dark:text-zinc-400 leading-relaxed">
-            GreenFlux is engineered to be the platform that orchestrates Europe's EV charging
+            GreenFlux is engineered to be the platform that orchestrates Europe&apos;s EV charging
             ecosystem — and to be the best possible foundation for your integration.
           </p>
         </div>
